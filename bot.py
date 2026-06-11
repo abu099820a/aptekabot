@@ -7,6 +7,7 @@ from telegram.ext import (
     filters,
 )
 
+from rapidfuzz import process
 from dotenv import load_dotenv
 import pandas as pd
 import os
@@ -25,14 +26,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["ℹ️ Ёрдам"]
     ]
 
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True
+    )
+
     context.user_data.clear()
 
     await update.message.reply_text(
         "🏥 ВАКСИНА МЕД АХБОРОТ БОТИ\n\nКеракли бўлимни танланг:",
-        reply_markup=ReplyKeyboardMarkup(
-            keyboard,
-            resize_keyboard=True
-        )
+        reply_markup=reply_markup
     )
 
 
@@ -84,7 +87,7 @@ async def search_filial(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["mode"] = "name"
 
         await update.message.reply_text(
-            "Филиал номини киритинг.\n\nМасалан: ТАШМИ ёки ДАРХОН"
+            "Филиал номини киритинг.\n\nМасалан: ДАРХОН"
         )
         return
 
@@ -116,65 +119,46 @@ async def search_filial(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text_upper = text.upper()
 
-    # Агар филиал номи тугмасини босса
-    selected = df[
-        df["Филиал номи"].astype(str).str.upper() == text_upper
-    ]
-
-    if not selected.empty:
-
-        row = selected.iloc[0]
-
-        msg = (
-            f"🏪 {row['Филиал рақами']}\n\n"
-            f"📛 Номи: {row['Филиал номи']}\n"
-            f"🏢 Район: {row['Район']}\n"
-            f"📍 Манзил: {row['Манзил']}\n"
-            f"📞 Телефон: {row['Телефон']}"
-        )
-
-        await update.message.reply_text(msg)
-        return
-
-    # Номи бўйича
+    # Номи бўйича fuzzy search
     if mode == "name":
 
         result = df[
             df["Филиал номи"]
-            .astype(str)
+        .astype(str)
             .str.upper()
             .str.contains(text_upper, na=False)
-        ]
+        ]  
 
-        if result.empty:
-            await update.message.reply_text(
-                "❌ Филиал топилмади."
-            )
-            return
+    if result.empty:
+        await update.message.reply_text(
+            "❌ Филиал топилмади."
+        )
+        return
 
-        # Бир нечта топилса тугмалар чиқарамиз
-        if len(result) > 1:
+    if len(result) > 1:
 
             keyboard = []
 
-            for _, row in result.iterrows():
-                keyboard.append([str(row["Филиал номи"])])
+    for _, row in result.iterrows():
+            keyboard.append(
+                [row["Филиал номи"]]
+        )
 
             keyboard.append(["⬅️ Орқага"])
 
             await update.message.reply_text(
-                "Қуйидаги филиаллар топилди:",
-                reply_markup=ReplyKeyboardMarkup(
-                    keyboard,
-                    resize_keyboard=True
-                )
-            )
+            "Қуйидаги филиаллар топилди:",
+            reply_markup=ReplyKeyboardMarkup(
+                keyboard,
+                resize_keyboard=True
+        )
+        )
             return
-
+ 
     # Рақами бўйича
     elif mode == "number":
 
-        if text.isdigit():
+    if text.isdigit():
             text_upper = f"{text}-ФИЛИАЛ"
 
         result = df[
